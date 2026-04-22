@@ -1,0 +1,631 @@
+Conversation
+########################
+conversationId: 1782bd46-01d3-43e9-8f14-eb01c0b53749
+endpoint: All ChatGSFC
+title: Land-Water Mask Accuracy Evaluation
+exportAt: 20:07:18 GMT-0400 (Eastern Daylight Time)
+
+Options
+########################
+presetId: null
+model: gemini-3.1-pro-preview
+modelLabel: ChatGSFC
+promptPrefix: You are an AI assistant available to NASA employees through the ChatGSFC platform. Important: You have NO specific knowledge about NASA projects, standards, internal procedures, or personnel unless the user explicitly provides this information.
+
+The current date is: 2026-04-06 (Monday).
+
+When responding:
+- Clearly acknowledge when you need additional NASA-specific context to answer accurately
+- Ask for relevant documentation or specific details when the query involves NASA projects or standards
+- Avoid making assumptions about NASA-specific information
+- Be transparent about your limitations regarding NASA knowledge
+- Remind users that for the most reliable answers about NASA matters, they should provide relevant documentation or context
+
+IMPORTANT DATA RESTRICTIONS:
+- ChatGSFC supports up to FISMA-Moderate.
+- Users ARE PERMITTED to supply CUI data to this system
+- Users are NOT permitted to supply ITAR, EAR, or PII data to this system
+- If a user attempts to share such restricted information, politely inform them of the restriction and suggest they stop sharing
+
+SUPPORT INFORMATION:
+- For help or support with ChatGSFC, the PREFERRED method is to submit a
+  request through the [ChatGSFC Service Desk](https://jira.ccs.nasa.gov/servicedesk/customer/portal/20)
+- At the service desk, users can:
+    - Report a bug
+    - Request an enhancement
+    - Ask a general question
+- Using the service desk allows the team to track requests and assign the
+  appropriate team members to resolve issues efficiently.
+- Users may also reach out via the [ChatGSFC Support Channel](https://teams.microsoft.com/l/channel/19%3Ab89f9a0af71d402992c8d372b30e387b%40thread.tacv2/ChatGSFC_Support?groupId=276ce13e-67d6-4fd0-82c9-9638d30b19ac&tenantId=7005d458-45be-48ae-8140-d43da96dd17b)
+  title: - Users may also reach out via the [ChatGSFC Support Channel](https://teams.microsoft.com/l/channel/19%3Ab89f9a0af71d402992c8d372b30e387b%40thread.tacv2/ChatGSFC_Support?groupId=276ce13e-67d6-4fd0-82c9-9638d30b19ac&tenantId=7005d458-45be-48ae-8140-d43da96dd17b
+  in Microsoft Teams under the ChatGSFC Team, or by emailing gsfc-dl-caio@mail.nasa.gov,
+  though the service desk is strongly preferred for tracking purposes.
+- For any technical difficulties or questions about the platform's
+  capabilities, please refer users to the service desk link above or the.
+
+Your role is to assist with general knowledge questions and help process information that users provide to you, not to retrieve or know NASA-specific information on your own.
+
+resendFiles: true
+greeting: How can I help you today?
+
+spec: chatgsfc
+maxContextTokens: 900000
+endpoint: All ChatGSFC
+endpointType: custom
+title: Land-Water Mask Accuracy Evaluation
+
+History
+########################
+>> User:
+code to evaluate accuracy of land-water mask geotiff
+
+
+>> ChatGSFC:
+To evaluate the accuracy of a land-water mask GeoTIFF, you typically need to compare it against a "ground truth" or reference GeoTIFF. 
+
+Here is a Python script using the `rasterio` library to read the GeoTIFFs and `scikit-learn` to calculate standard classification metrics (Overall Accuracy, Precision, Recall, F1-Score, and a Confusion Matrix).
+
+### Prerequisites
+You will need to install the following Python packages if you haven't already:
+```bash
+pip install rasterio numpy scikit-learn
+```
+
+### Python Code
+
+```python
+import rasterio
+import numpy as np
+from sklearn.metrics import accuracy_score, precision_recall_fscore_support, confusion_matrix, classification_report
+
+def evaluate_mask_accuracy(predicted_tiff, reference_tiff, nodata_value=None):
+    """
+    Evaluates the accuracy of a land-water mask against a reference mask.
+    
+    Parameters:
+    - predicted_tiff: str, path to the classified/predicted land-water mask GeoTIFF
+    - reference_tiff: str, path to the ground truth/reference land-water mask GeoTIFF
+    - nodata_value: int/float, value to ignore during evaluation (e.g., 255)
+    """
+    
+    # Open both GeoTIFFs
+    with rasterio.open(predicted_tiff) as src_pred, rasterio.open(reference_tiff) as src_ref:
+        
+        # Check if dimensions match
+        if src_pred.shape != src_ref.shape:
+            raise ValueError(f"Shape mismatch: Predicted {src_pred.shape} vs Reference {src_ref.shape}. "
+                             f"Rasters must be aligned and have the same dimensions.")
+        
+        # Read the first band of the raster into numpy arrays
+        pred_data = src_pred.read(1)
+        ref_data = src_ref.read(1)
+        
+        # Flatten arrays for scikit-learn metrics
+        pred_flat = pred_data.flatten()
+        ref_flat = ref_data.flatten()
+        
+        # Handle NoData values if specified or available in raster metadata
+        ref_nodata = nodata_value if nodata_value is not None else src_ref.nodata
+        pred_nodata = nodata_value if nodata_value is not None else src_pred.nodata
+        
+        # Create a valid data mask (ignoring NoData pixels in either raster)
+        valid_mask = np.ones_like(ref_flat, dtype=bool)
+        if ref_nodata is not None:
+            valid_mask &= (ref_flat != ref_nodata)
+        if pred_nodata is not None:
+            valid_mask &= (pred_flat != pred_nodata)
+            
+        # Filter the arrays using the valid mask
+        y_true = ref_flat[valid_mask]
+        y_pred = pred_flat[valid_mask]
+        
+        # Calculate metrics
+        print("--- Land-Water Mask Evaluation ---")
+        
+        # 1. Overall Accuracy
+        oa = accuracy_score(y_true, y_pred)
+        print(f"Overall Accuracy: {oa:.4f}")
+        
+        # 2. Confusion Matrix
+        cm = confusion_matrix(y_true, y_pred)
+        print("\nConfusion Matrix:")
+        print(cm)
+        
+        # 3. Detailed Classification Report (Precision, Recall, F1-Score)
+        # Assuming 0 = Water, 1 = Land (adjust labels as needed for your specific data)
+        print("\nClassification Report:")
+        print(classification_report(y_true, y_pred, digits=4))
+
+# Example Usage:
+if __name__ == "__main__":
+    # Replace these with your actual file paths
+    predicted_file = "path/to/your/predicted_mask.tif"
+    reference_file = "path/to/your/ground_truth_mask.tif"
+    
+    # Run evaluation (e.g., assuming 255 is NoData)
+    evaluate_mask_accuracy(predicted_file, reference_file, nodata_value=255)
+```
+
+### Important Considerations:
+1. **Alignment & Projection:** This code assumes that both GeoTIFFs have exactly the same dimensions (rows and columns), spatial resolution, and coordinate reference system (CRS). If they do not match, you will need to reproject or resample one to match the other using `rasterio.warp` or a tool like `gdalwarp` before running this script.
+2. **Class Values:** Make sure both rasters use the same integer mapping (e.g., `0` for Water, `1` for Land). If your predicted mask uses `1` and `2`, and the reference uses `0` and `1`, you will need to map/reclassify the values using `numpy` before passing them to the metric functions.
+3. **NoData Values:** Areas outside the valid domain (like image edges) will skew your accuracy artificially high if both masks agree on "NoData". The code actively masks out these pixels. Ensure your `nodata_value` parameter is correct.
+
+
+>> User:
+code to read in differently sized geotiffs with different projections and only analyze common areas, and project the second image to the projection of the first image
+
+
+>> ChatGSFC:
+To handle GeoTIFFs with different sizes and projections, we need to dynamically find their intersecting bounding box, align their grids, and reproject the second image to match the first.
+
+Here is the complete Python script to accomplish this using `rasterio`. Because we are dealing with a land-water mask (categorical data: e.g., 0 for water, 1 for land), it is critical to use **Nearest Neighbor** resampling during the reprojection to avoid creating artificial decimal values between classes.
+
+### Prerequisites
+```bash
+pip install rasterio numpy scikit-learn
+```
+
+### Python Code
+
+```python
+import rasterio
+from rasterio.warp import transform_bounds, reproject, Resampling
+import numpy as np
+from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
+
+def evaluate_masks_with_reprojection(ref_tiff, pred_tiff, nodata_value=None):
+    """
+    Reads two Geotiffs of different sizes/projections, extracts the common overlapping
+    area, reprojects the predicted mask to match the reference mask, and evaluates accuracy.
+    
+    Parameters:
+    - ref_tiff: str, path to the reference (ground truth) GeoTIFF. 
+                This will be the target projection and resolution.
+    - pred_tiff: str, path to the predicted mask GeoTIFF.
+    - nodata_value: int/float, value to ignore during evaluation.
+    """
+    
+    with rasterio.open(ref_tiff) as src_ref, rasterio.open(pred_tiff) as src_pred:
+        
+        print(f"Reference CRS: {src_ref.crs}")
+        print(f"Predicted CRS: {src_pred.crs}")
+        
+        # 1. Transform the bounds of the predicted image into the reference CRS
+        pred_bounds_in_ref_crs = transform_bounds(
+            src_pred.crs, src_ref.crs, *src_pred.bounds
+        )
+        
+        # 2. Calculate the intersection of the two bounding boxes
+        ref_bounds = src_ref.bounds
+        intersect_left = max(ref_bounds.left, pred_bounds_in_ref_crs[0])
+        intersect_bottom = max(ref_bounds.bottom, pred_bounds_in_ref_crs[1])
+        intersect_right = min(ref_bounds.right, pred_bounds_in_ref_crs[2])
+        intersect_top = min(ref_bounds.top, pred_bounds_in_ref_crs[3])
+        
+        # Check if they actually overlap
+        if intersect_left >= intersect_right or intersect_bottom >= intersect_top:
+            raise ValueError("The two GeoTIFFs do not overlap in space.")
+            
+        print("Calculated intersecting bounding box successfully.")
+        
+        # 3. Get the pixel window in the reference image corresponding to the overlap
+        window = src_ref.window(intersect_left, intersect_bottom, intersect_right, intersect_top)
+        
+        # Round the window to integer pixel coordinates to ensure exact alignment
+        window = window.round_offsets().round_lengths()
+        
+        # 4. Read the reference data for the overlapping window
+        ref_data = src_ref.read(1, window=window)
+        
+        # Get the spatial transform for this specific window
+        window_transform = src_ref.window_transform(window)
+        
+        # 5. Create an empty array to hold the reprojected predicted data
+        # It must exactly match the shape of the extracted reference window
+        pred_data = np.empty_like(ref_data)
+        
+        # 6. Reproject and resample the predicted image into the new array
+        # We use NEAREST resampling because land/water masks are categorical
+        print("Reprojecting and resampling predicted image to match reference grid...")
+        reproject(
+            source=rasterio.band(src_pred, 1),
+            destination=pred_data,
+            src_transform=src_pred.transform,
+            src_crs=src_pred.crs,
+            dst_transform=window_transform,
+            dst_crs=src_ref.crs,
+            resampling=Resampling.nearest 
+        )
+        
+        # --- Evaluate Accuracy ---
+        
+        # Flatten arrays for scikit-learn
+        ref_flat = ref_data.flatten()
+        pred_flat = pred_data.flatten()
+        
+        # Identify NoData values
+        ref_nodata = nodata_value if nodata_value is not None else src_ref.nodata
+        pred_nodata = nodata_value if nodata_value is not None else src_pred.nodata
+        
+        # Create a valid data mask (ignore NoData)
+        valid_mask = np.ones_like(ref_flat, dtype=bool)
+        if ref_nodata is not None:
+            valid_mask &= (ref_flat != ref_nodata)
+        if pred_nodata is not None:
+            valid_mask &= (pred_flat != pred_nodata)
+            
+        # Filter arrays
+        y_true = ref_flat[valid_mask]
+        y_pred = pred_flat[valid_mask]
+        
+        if len(y_true) == 0:
+            print("No valid pixels to evaluate after applying NoData masks.")
+            return
+
+        print("\n--- Land-Water Mask Evaluation (Overlapping Area) ---")
+        print(f"Evaluated Pixels: {len(y_true)}")
+        
+        # Overall Accuracy
+        oa = accuracy_score(y_true, y_pred)
+        print(f"Overall Accuracy: {oa:.4f}")
+        
+        # Confusion Matrix
+        cm = confusion_matrix(y_true, y_pred)
+        print("\nConfusion Matrix:")
+        print(cm)
+        
+        # Classification Report
+        print("\nClassification Report:")
+        print(classification_report(y_true, y_pred, digits=4))
+
+# Example usage
+if __name__ == "__main__":
+    # The reference image acts as the base map (target CRS and target grid)
+    reference_file = "path/to/ground_truth.tif"
+    
+    # The predicted image will be reprojected, cropped, and resampled to match the reference
+    predicted_file = "path/to/model_prediction.tif"
+    
+    # Run evaluation (assumes 255 represents NoData)
+    evaluate_masks_with_reprojection(reference_file, predicted_file, nodata_value=255)
+```
+
+### How this works:
+1. **`transform_bounds`**: It calculates the geographic footprint of Image 2 but expresses those coordinates in the EPSG system of Image 1.
+2. **Intersection Calculation**: It finds the mathematical overlap (bounding box) of both footprints.
+3. **`src_ref.window`**: It converts those geographic bounding box coordinates into pixel coordinates (row/col) specific to Image 1's grid.
+4. **`reproject`**: Instead of saving a new physical file to disk, it performs an in-memory transformation. It projects the raster from Image 2 directly into an empty Numpy array that perfectly matches the height, width, and geographic location of the Image 1 window.
+
+
+>> User:
+only calculate land accuracy as nodata is used for water
+
+
+>> ChatGSFC:
+If water is represented as `NoData` and the valid pixels represent land, then the evaluation becomes a binary classification problem where **Not-NoData = Land** and **NoData = Water**. 
+
+Instead of ignoring `NoData`, we will use it to define the classes. Since you only want to calculate the accuracy for the "Land" class, we will focus on metrics like **Recall** (how much actual land was found), **Precision** (how much predicted land was actually land), and **IoU** (Intersection over Union).
+
+Here is the updated script:
+
+```python
+import rasterio
+from rasterio.warp import transform_bounds, reproject, Resampling
+import numpy as np
+
+def evaluate_land_accuracy(ref_tiff, pred_tiff, nodata_value=None):
+    """
+    Evaluates land mask accuracy where NoData represents Water and valid data represents Land.
+    """
+    
+    with rasterio.open(ref_tiff) as src_ref, rasterio.open(pred_tiff) as src_pred:
+        
+        # 1. Bounding box intersection and Window extraction
+        pred_bounds_in_ref_crs = transform_bounds(src_pred.crs, src_ref.crs, *src_pred.bounds)
+        
+        ref_bounds = src_ref.bounds
+        intersect_left = max(ref_bounds.left, pred_bounds_in_ref_crs[0])
+        intersect_bottom = max(ref_bounds.bottom, pred_bounds_in_ref_crs[1])
+        intersect_right = min(ref_bounds.right, pred_bounds_in_ref_crs[2])
+        intersect_top = min(ref_bounds.top, pred_bounds_in_ref_crs[3])
+        
+        if intersect_left >= intersect_right or intersect_bottom >= intersect_top:
+            raise ValueError("The two GeoTIFFs do not overlap.")
+            
+        window = src_ref.window(intersect_left, intersect_bottom, intersect_right, intersect_top)
+        window = window.round_offsets().round_lengths()
+        
+        ref_data = src_ref.read(1, window=window)
+        window_transform = src_ref.window_transform(window)
+        
+        # 2. Reproject predicted data to match reference grid
+        pred_data = np.empty_like(ref_data)
+        
+        reproject(
+            source=rasterio.band(src_pred, 1),
+            destination=pred_data,
+            src_transform=src_pred.transform,
+            src_crs=src_pred.crs,
+            dst_transform=window_transform,
+            dst_crs=src_ref.crs,
+            resampling=Resampling.nearest 
+        )
+        
+        # --- Evaluate Land Accuracy ---
+        ref_flat = ref_data.flatten()
+        pred_flat = pred_data.flatten()
+        
+        ref_nodata = nodata_value if nodata_value is not None else src_ref.nodata
+        pred_nodata = nodata_value if nodata_value is not None else src_pred.nodata
+        
+        if ref_nodata is None or pred_nodata is None:
+            raise ValueError("NoData values must be defined in the raster metadata or passed as an argument.")
+
+        # Define Land as True (Not NoData) and Water as False (NoData)
+        actual_land = (ref_flat != ref_nodata)
+        predicted_land = (pred_flat != pred_nodata)
+        
+        # Calculate True Positives, False Positives, False Negatives
+        true_positives = np.sum(actual_land & predicted_land)     # Land predicted as Land
+        false_positives = np.sum(~actual_land & predicted_land)   # Water predicted as Land
+        false_negatives = np.sum(actual_land & ~predicted_land)   # Land predicted as Water
+        
+        total_actual_land = np.sum(actual_land)
+        total_predicted_land = np.sum(predicted_land)
+        
+        # Calculate Metrics
+        recall = true_positives / total_actual_land if total_actual_land > 0 else 0.0
+        precision = true_positives / total_predicted_land if total_predicted_land > 0 else 0.0
+        f1_score = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0.0
+        iou = true_positives / (true_positives + false_positives + false_negatives) if (true_positives + false_positives + false_negatives) > 0 else 0.0
+        
+        print("\n--- Land Accuracy Report (Overlapping Area) ---")
+        print(f"Total Actual Land Pixels:    {total_actual_land}")
+        print(f"Total Predicted Land Pixels: {total_predicted_land}")
+        print(f"Correctly Predicted Land:    {true_positives}")
+        print("-" * 40)
+        print(f"Recall (Producer's Accuracy): {recall:.4f}  <- % of actual land found")
+        print(f"Precision (User's Accuracy):  {precision:.4f}  <- % of predicted land that is correct")
+        print(f"F1-Score:                     {f1_score:.4f}")
+        print(f"IoU (Intersection over Union):{iou:.4f}")
+
+# Example usage
+if __name__ == "__main__":
+    reference_file = "path/to/ground_truth.tif"
+    predicted_file = "path/to/model_prediction.tif"
+    
+    # Replace 255 with whatever your NoData/Water value is
+    evaluate_land_accuracy(reference_file, predicted_file, nodata_value=255)
+```
+
+### Key Changes:
+1. **Binary Logic based on NoData:** The script creates boolean masks (`actual_land` and `predicted_land`) where anything that is *not* `NoData` is considered `True` (Land).
+2. **Specific Land Metrics:** It calculates metrics solely focused on the `True` class (Land) using raw boolean comparisons (`&`, `~`). It outputs Precision, Recall, and IoU, avoiding the standard scikit-learn metrics which would heavily weight the "Water" accuracy due to class imbalance.
+
+
+>> User:
+switch reference and predicted - predicted is smaller and reference needs to be cropped to predicted size
+
+
+>> ChatGSFC:
+Here is the updated script. Since the `predicted` image is the smaller one and represents your target area of interest, we can use its exact grid (dimensions, projection, and geotransform) as the baseline. 
+
+We simply tell `rasterio.warp.reproject` to pull from the larger `reference` image and project it directly into an array that matches the `predicted` image. This automatically handles both the cropping and the reprojection in one step.
+
+```python
+import rasterio
+from rasterio.warp import reproject, Resampling
+import numpy as np
+
+def evaluate_land_accuracy_cropped_ref(ref_tiff, pred_tiff, ref_nodata_value=None, pred_nodata_value=None):
+    """
+    Evaluates land mask accuracy by cropping/reprojecting a larger reference mask 
+    to match a smaller predicted mask. NoData represents Water, valid data represents Land.
+    """
+    
+    with rasterio.open(ref_tiff) as src_ref, rasterio.open(pred_tiff) as src_pred:
+        
+        # 1. Read the smaller predicted image (this sets our target grid)
+        pred_data = src_pred.read(1)
+        
+        # 2. Create an empty array to hold the cropped/reprojected reference data
+        # It perfectly matches the dimensions of the predicted data
+        ref_data_reproj = np.empty_like(pred_data)
+        
+        print(f"Cropping and reprojecting Reference ({src_ref.crs}) to match Predicted ({src_pred.crs})...")
+        
+        # 3. Reproject the larger reference raster into the smaller predicted grid
+        reproject(
+            source=rasterio.band(src_ref, 1),
+            destination=ref_data_reproj,
+            src_transform=src_ref.transform,
+            src_crs=src_ref.crs,
+            dst_transform=src_pred.transform,
+            dst_crs=src_pred.crs,
+            resampling=Resampling.nearest 
+        )
+        
+        # --- Evaluate Land Accuracy ---
+        pred_flat = pred_data.flatten()
+        ref_flat = ref_data_reproj.flatten()
+        
+        # Identify NoData values
+        ref_nodata = ref_nodata_value if ref_nodata_value is not None else src_ref.nodata
+        pred_nodata = pred_nodata_value if pred_nodata_value is not None else src_pred.nodata
+        
+        if ref_nodata is None or pred_nodata is None:
+            raise ValueError("NoData values must be defined in the raster metadata or passed as arguments.")
+
+        # Define Land as True (Not NoData) and Water as False (NoData)
+        actual_land = (ref_flat != ref_nodata)
+        predicted_land = (pred_flat != pred_nodata)
+        
+        # Calculate True Positives, False Positives, False Negatives
+        true_positives = np.sum(actual_land & predicted_land)     # Actual Land predicted as Land
+        false_positives = np.sum(~actual_land & predicted_land)   # Actual Water predicted as Land
+        false_negatives = np.sum(actual_land & ~predicted_land)   # Actual Land predicted as Water
+        
+        total_actual_land = np.sum(actual_land)
+        total_predicted_land = np.sum(predicted_land)
+        
+        # Calculate Metrics
+        recall = true_positives / total_actual_land if total_actual_land > 0 else 0.0
+        precision = true_positives / total_predicted_land if total_predicted_land > 0 else 0.0
+        f1_score = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0.0
+        iou = true_positives / (true_positives + false_positives + false_negatives) if (true_positives + false_positives + false_negatives) > 0 else 0.0
+        
+        print("\n--- Land Accuracy Report ---")
+        print(f"Total Actual Land Pixels:    {total_actual_land:,}")
+        print(f"Total Predicted Land Pixels: {total_predicted_land:,}")
+        print(f"Correctly Predicted Land:    {true_positives:,}")
+        print("-" * 40)
+        print(f"Recall (Producer's Accuracy): {recall:.4f}  <- % of actual land found")
+        print(f"Precision (User's Accuracy):  {precision:.4f}  <- % of predicted land that is correct")
+        print(f"F1-Score:                     {f1_score:.4f}")
+        print(f"IoU (Intersection over Union):{iou:.4f}")
+
+# Example usage
+if __name__ == "__main__":
+    reference_file = "path/to/large_ground_truth.tif"
+    predicted_file = "path/to/small_model_prediction.tif"
+    
+    # You can pass different NoData values if the two files use different markers for water
+    evaluate_land_accuracy_cropped_ref(
+        reference_file, 
+        predicted_file, 
+        ref_nodata_value=255, 
+        pred_nodata_value=255
+    )
+```
+
+
+>> User:
+composite statistics for all the images in one directory
+
+
+>> ChatGSFC:
+Here is the complete script to process a directory of smaller predicted images against a single large reference image. 
+
+It calculates the true positives, false positives, and false negatives for each image, accumulating them into a running total. At the end, it calculates the **composite (global)** Precision, Recall, F1-Score, and IoU across all images combined.
+
+```python
+import os
+import glob
+import rasterio
+from rasterio.warp import reproject, Resampling
+import numpy as np
+
+def evaluate_directory_composite(ref_tiff, pred_dir, ref_nodata_value=None, pred_nodata_value=None):
+    """
+    Evaluates all predicted TIFFs in a directory against a single large reference TIFF.
+    Calculates composite Land accuracy statistics across all images.
+    """
+    
+    # Find all TIFF files in the predicted directory
+    pred_files = glob.glob(os.path.join(pred_dir, "*.tif"))
+    
+    if not pred_files:
+        print(f"No .tif files found in directory: {pred_dir}")
+        return
+
+    print(f"Found {len(pred_files)} images to process. Calculating composite statistics...\n")
+
+    # Initialize running totals
+    total_tp = 0
+    total_fp = 0
+    total_fn = 0
+    total_actual = 0
+    total_predicted = 0
+
+    # Open the large reference image once
+    with rasterio.open(ref_tiff) as src_ref:
+        ref_nodata = ref_nodata_value if ref_nodata_value is not None else src_ref.nodata
+        
+        if ref_nodata is None:
+             raise ValueError("Reference NoData value must be defined.")
+
+        for idx, pred_file in enumerate(pred_files, 1):
+            print(f"Processing {idx}/{len(pred_files)}: {os.path.basename(pred_file)}")
+            
+            with rasterio.open(pred_file) as src_pred:
+                pred_nodata = pred_nodata_value if pred_nodata_value is not None else src_pred.nodata
+                
+                if pred_nodata is None:
+                    print(f"  Skipping {os.path.basename(pred_file)}: NoData value undefined.")
+                    continue
+                
+                # Read predicted data
+                pred_data = src_pred.read(1)
+                
+                # Create empty array for reprojected reference data
+                ref_data_reproj = np.empty_like(pred_data)
+                
+                # Reproject reference to match the current predicted image
+                reproject(
+                    source=rasterio.band(src_ref, 1),
+                    destination=ref_data_reproj,
+                    src_transform=src_ref.transform,
+                    src_crs=src_ref.crs,
+                    dst_transform=src_pred.transform,
+                    dst_crs=src_pred.crs,
+                    resampling=Resampling.nearest 
+                )
+                
+                # Flatten arrays
+                pred_flat = pred_data.flatten()
+                ref_flat = ref_data_reproj.flatten()
+                
+                # Define Land as True (Not NoData) and Water as False (NoData)
+                actual_land = (ref_flat != ref_nodata)
+                predicted_land = (pred_flat != pred_nodata)
+                
+                # Accumulate counts for this image
+                total_actual += np.sum(actual_land)
+                total_predicted += np.sum(predicted_land)
+                
+                total_tp += np.sum(actual_land & predicted_land)
+                total_fp += np.sum(~actual_land & predicted_land)
+                total_fn += np.sum(actual_land & ~predicted_land)
+
+    # --- Calculate Composite Metrics ---
+    print("\n" + "="*50)
+    print("      COMPOSITE LAND ACCURACY REPORT")
+    print("="*50)
+    
+    if total_actual == 0 and total_predicted == 0:
+        print("No land pixels found in any of the images.")
+        return
+
+    # Calculate final metrics using aggregated counts
+    recall = total_tp / total_actual if total_actual > 0 else 0.0
+    precision = total_tp / total_predicted if total_predicted > 0 else 0.0
+    f1_score = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0.0
+    iou = total_tp / (total_tp + total_fp + total_fn) if (total_tp + total_fp + total_fn) > 0 else 0.0
+    
+    print(f"Total Images Processed:      {len(pred_files)}")
+    print(f"Total Actual Land Pixels:    {total_actual:,}")
+    print(f"Total Predicted Land Pixels: {total_predicted:,}")
+    print(f"Total Correctly Predicted:   {total_tp:,}")
+    print("-" * 50)
+    print(f"Composite Recall (Producer's): {recall:.4f}")
+    print(f"Composite Precision (User's):  {precision:.4f}")
+    print(f"Composite F1-Score:            {f1_score:.4f}")
+    print(f"Composite IoU:                 {iou:.4f}")
+    print("="*50)
+
+# Example usage
+if __name__ == "__main__":
+    reference_file = "path/to/large_ground_truth.tif"
+    predicted_directory = "path/to/directory_with_predicted_tiffs"
+    
+    # Run the composite evaluation
+    evaluate_directory_composite(
+        ref_tiff=reference_file, 
+        pred_dir=predicted_directory, 
+        ref_nodata_value=255, 
+        pred_nodata_value=255
+    )
+```
+
+
